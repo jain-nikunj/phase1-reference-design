@@ -1,0 +1,47 @@
+
+There appears to be a sign discrepancy in the way that the final tuning frequency is calculated for the receive tuner as compared to the transmit tuner when manual tuning (uhd::tune_request_t::POLICY_MANUAL;) is requested.  For example, here is a code snippet for trying generate a final frequency of 2.406 GHz:
+
+    uhd::usrp::multi_usrp::sptr   usrp;
+    uhd::tune_request_t           tx_tune_req;
+    uhd::tune_request_t           rx_tune_req;
+
+    //  Want final frequency 2.405e9 + 1.0e6 = 2.406 GHz
+    tx_tune_req.rf_freq = 2.405e9;  
+    tx_tune_req.dsp_freq = 1.0e6;  
+    tx_tune_req.rf_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    tx_tune_req.dsp_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    usrp->set_tx_freq(tx_tune_req);
+
+    rx_tune_req.rf_freq = 2.405e9;  
+    rx_tune_req.dsp_freq = 1.0e6;  
+    rx_tune_req.rf_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    rx_tune_req.dsp_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    usrp->set_rx_freq(rx_tune_req);
+
+What UHD reports via usrp->get_tx_freq() is the expected 2.406e+09; however, what usrp->get_rx_freq() reports is 2.404e9.  When using the automatic tuning both tune to the expected 2.406 GHz.
+
+It appears that there is a sign inversion in the receiver's "DSP" stage when the overall frequency is calculated, because of the results from the following code snippet trying generate a final frequency of 2.404 GHz:
+
+    //  Want final frequency 2.405e9 - 1.0e6 = 2.404 GHz
+    tx_tune_req.rf_freq = 2.405e9;  
+    tx_tune_req.dsp_freq = -1.0e6;  
+    tx_tune_req.rf_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    tx_tune_req.dsp_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    usrp->set_tx_freq(tx_tune_req);
+
+    rx_tune_req.rf_freq = 2.405e9;  
+    rx_tune_req.dsp_freq = -1.0e6;  
+    rx_tune_req.rf_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    rx_tune_req.dsp_freq_policy = uhd::tune_request_t::POLICY_MANUAL;
+    usrp->set_rx_freq(rx_tune_req);
+
+Again, UHD reports via usrp->get_tx_freq() that the transmitter is the expected 2.404e+09; however, what usrp->get_rx_freq() reports is 2.406e9. Again, automatic tuning works fine.
+
+We have encountered this on both the USRP N210 with SBX and the USRP X300 with wideband SBX-120 for a couple of UHD versions including UHD_003.007.001-84-gd99ce4ef and UHD_003.007.002-90-unstable.
+
+While I suspect I understand the thought process about upconversion/downconversion that may have led to this, the tuning behavior is surprising given the way manual tuning is documented:
+   http://files.ettus.com/manual/structuhd_1_1tune__request__t.html
+   http://files.ettus.com/manual/page_general.html
+   
+
+***********************************************************************
